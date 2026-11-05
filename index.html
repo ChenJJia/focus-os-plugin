@@ -233,18 +233,24 @@ kbd { font: 12px ui-monospace, monospace; background: var(--panel-2); border: 1p
 .projects-heading{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 8px}
 .projects-heading h1{margin:0;font-size:18px}
 .projects-heading .btn{white-space:nowrap}
-.project-folders{border:1px solid var(--line,#dedbd1);border-radius:9px;overflow:hidden}
-.project-folder{position:relative;min-width:0}
-.project-folder+.project-folder{border-top:1px solid var(--line,#dedbd1)}
-.project-folder-title{padding:8px 44px 8px 10px;min-height:36px;cursor:pointer}
+.project-folders{display:grid;gap:8px}
+.project-folder{position:relative;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.project-folder-title{padding:8px 44px 8px 10px;min-height:36px;cursor:pointer;background:var(--accent-soft);color:var(--accent)}
 .project-folder-title strong{margin-right:8px}
 .project-folder .project-add{position:absolute;right:5px;top:3px;width:32px;height:32px;padding:0}
+.project-toggle,.project-toggle-space{flex:0 0 24px;margin-left:5px}
+.project-toggle{height:28px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--accent)}
+.project-toggle:hover{background:var(--accent-soft)}
+.project-child-count{color:var(--accent);background:var(--accent-soft);padding:0 5px;border-radius:4px}
+.project-list.project-children{margin-left:25px;border-left:2px solid var(--line);background:var(--panel-2)}
+.project-children .project-entry-main{padding-left:10px}
+.project-children .project-name{font-weight:500}
 .project-list{list-style:none;padding:0;margin:0}
 .project-entry{display:flex;align-items:center;gap:5px;border-top:1px solid var(--line,#dedbd1);padding-right:7px;min-width:0}
-.project-entry-main{display:flex;align-items:center;gap:8px;min-width:0;flex:1;padding:7px 0 7px 16px;min-height:36px;text-align:left;background:none;border:0;color:inherit;font:inherit;cursor:pointer}
+.project-entry-main{display:flex;align-items:center;gap:8px;min-width:0;flex:1;padding:7px 0 7px 4px;min-height:36px;text-align:left;background:none;border:0;color:inherit;font:inherit;cursor:pointer}
 .project-entry-main:hover,.project-folder-title:hover{background:rgba(127,127,127,.08)}
 .project-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
-.project-entry-meta{display:flex;align-items:center;justify-content:flex-end;gap:6px;color:var(--muted);font-size:11px;white-space:nowrap}
+.project-entry-meta{display:flex;align-items:center;justify-content:flex-end;gap:6px;color:var(--ink-2);font-size:11px;white-space:nowrap}
 .project-entry-meta .tag{font-size:10px;padding:1px 4px}
 .project-entry .project-close{white-space:nowrap}
 .project-empty,.project-archived>summary{padding:5px 16px}
@@ -1430,21 +1436,43 @@ Example:
   const [selected,setSelected]=(0,nr.useState)(null);
   const [newArea,setNewArea]=(0,nr.useState)(null);
   const [draftParent,setDraftParent]=(0,nr.useState)(null);
+  const [expandedProjects,setExpandedProjects]=(0,nr.useState)(()=>new Set());
+  const childrenByParent=new Map();
+  for(const project of projects){
+    if(!project.parentProjectId)continue;
+    if(!childrenByParent.has(project.parentProjectId))childrenByParent.set(project.parentProjectId,[]);
+    childrenByParent.get(project.parentProjectId).push(project);
+  }
+  const toggleChildren=id=>setExpandedProjects(previous=>{
+    const next=new Set(previous);
+    if(next.has(id))next.delete(id);else next.add(id);
+    return next;
+  });
   const projectById=new Map(projects.map(project=>[project.id,project]));
   const current=selected&&selected!=="new"?projectById.get(selected.id):null;
   const parent=current?projectById.get(current.parentProjectId):draftParent;
   const startProject=(area,parentProject=null)=>{setNewArea(area);setDraftParent(parentProject);setSelected("new")};
-  const renderProject=project=>{
+  const renderProject=(project,isChild=false)=>{
     const tasks=items.filter(task=>task.projectId===project.id&&task.status!=="已放弃");
     const done=tasks.filter(tr).length;
     const next=tasks.filter(FE).length;
     const active=project.status==="进行中";
-    const hasOpenChildren=projects.some(child=>child.parentProjectId===project.id&&child.status!=="已完成");
+    const children=isChild?[]:childrenByParent.get(project.id)||[];
+    const expanded=children.length>0&&expandedProjects.has(project.id);
+    const hasOpenChildren=children.some(child=>child.status!=="已完成");
     const canClose=active&&!hasOpenChildren&&tasks.length>0&&done===tasks.length&&next===0;
-    return (0,U.jsxs)("li",{className:"project-entry",children:[
+    return (0,U.jsxs)("li",{children:[
+      (0,U.jsxs)("div",{className:"project-entry",children:[
+      children.length>0&&(0,U.jsx)("button",{
+        type:"button",className:"project-toggle","aria-expanded":expanded,
+        "aria-label":(expanded?"收起":"展开")+project.name+"的子项目",
+        onClick:()=>toggleChildren(project.id),children:expanded?"▾":"▸"
+      }),
+      !isChild&&children.length===0&&(0,U.jsx)("span",{className:"project-toggle-space","aria-hidden":true}),
       (0,U.jsxs)("button",{type:"button",className:"project-entry-main",onClick:()=>setSelected(project),children:[
         (0,U.jsx)("strong",{className:"project-name",title:project.name,children:project.name}),
         (0,U.jsxs)("span",{className:"project-entry-meta",children:[
+          children.length>0&&(0,U.jsx)("span",{className:"project-child-count",children:children.length+" 个子项目"}),
           (0,U.jsx)("span",{title:done+"/"+tasks.length+" 步完成 · "+next+" 个待办",children:done+"/"+tasks.length+" 步"}),
           project.dueDate&&(0,U.jsx)("span",{children:"截止 "+Ki(project.dueDate)}),
           !active&&(0,U.jsx)("span",{className:"tag",children:project.status}),
@@ -1452,16 +1480,18 @@ Example:
         ]})
       ]}),
       canClose&&(0,U.jsx)("button",{type:"button",className:"btn sm project-close",onClick:()=>ac("projects",project.id,{status:"已完成"}),children:"结项"})
+      ]}),
+      expanded&&(0,U.jsx)("ul",{className:"project-list project-children",children:children.map(child=>renderProject(child,true))})
     ]},project.id);
   };
-  const renderList=entries=>(0,U.jsx)("ul",{className:"project-list",children:entries.map(renderProject)});
+  const renderList=entries=>(0,U.jsx)("ul",{className:"project-list",children:entries.map(project=>renderProject(project))});
   const renderFolder=area=>{
     const entries=projects.filter(project=>!projectById.has(project.parentProjectId)&&(area===null?!Ur.includes(project.area):project.area===area));
     const active=entries.filter(project=>project.status==="进行中");
     const archived=entries.filter(project=>project.status!=="进行中");
     const label=area||"未分类";
     return (0,U.jsxs)("div",{className:"project-folder",children:[
-      (0,U.jsxs)("details",{children:[
+      (0,U.jsxs)("details",{open:true,children:[
         (0,U.jsxs)("summary",{className:"project-folder-title",children:[
           (0,U.jsx)("strong",{children:label}),
           (0,U.jsx)("span",{className:"muted small",children:entries.length+" 个项目"})
